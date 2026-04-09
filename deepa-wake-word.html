@@ -1,1167 +1,1452 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Deepa — Wake Word Listener</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap');
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deepa — Wake Word Listener</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap');
 
-  :root {
-    --bg: #f5f3ef;
-    --surface: #ffffff;
-    --border: rgba(0,0,0,0.09);
-    --nepali: #b85c00;
-    --english: #1a6fad;
-    --muted: rgba(0,0,0,0.38);
-    --text: rgba(0,0,0,0.82);
-    --idle-ring: rgba(0,0,0,0.12);
-  }
+        :root {
+            --bg: #f5f3ef;
+            --surface: #ffffff;
+            --border: rgba(0, 0, 0, 0.09);
+            --nepali: #b85c00;
+            --english: #1a6fad;
+            --muted: rgba(0, 0, 0, 0.38);
+            --text: rgba(0, 0, 0, 0.82);
+            --idle-ring: rgba(0, 0, 0, 0.12);
+        }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 40px 20px 60px;
-    overflow-x: hidden;
-  }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px 60px;
+            overflow-x: hidden;
+        }
 
-  /* Noise texture overlay */
-  body::before {
-    content: '';
-    position: fixed; inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
-    pointer-events: none; z-index: 0;
-  }
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+        }
 
-  .everything { position: relative; z-index: 1; width: 100%; max-width: 640px; }
+        .everything {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 640px;
+        }
 
-  /* Header */
-  header { text-align: center; margin-bottom: 48px; }
-  .wordmark {
-    font-family: 'Playfair Display', serif;
-    font-size: 13px;
-    font-weight: 400;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 16px;
-  }
-  h1 {
-    font-family: 'Playfair Display', serif;
-    font-size: clamp(36px, 7vw, 56px);
-    font-weight: 900;
-    line-height: 1;
-    letter-spacing: -0.02em;
-    margin-bottom: 12px;
-  }
-  .tagline {
-    font-size: 14px;
-    color: var(--muted);
-    font-weight: 300;
-    letter-spacing: 0.05em;
-  }
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
 
-  /* Main orb */
-  .orb-wrap {
-    display: flex;
-    justify-content: center;
-    margin: 16px 0 40px;
-  }
-  .orb {
-    width: 180px; height: 180px;
-    border-radius: 50%;
-    border: 1.5px solid var(--idle-ring);
-    display: flex; align-items: center; justify-content: center;
-    position: relative;
-    cursor: pointer;
-    transition: border-color 0.4s;
-  }
-  .orb::before, .orb::after {
-    content: '';
-    position: absolute; inset: -16px;
-    border-radius: 50%;
-    border: 1px solid var(--idle-ring);
-    transition: all 0.4s;
-  }
-  .orb::after { inset: -32px; border-color: transparent; }
+        .wordmark {
+            font-family: 'Playfair Display', serif;
+            font-size: 13px;
+            font-weight: 400;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 16px;
+        }
 
-  .orb.listening {
-    border-color: rgba(0,0,0,0.25);
-    animation: orbPulse 2.4s ease-in-out infinite;
-  }
-  .orb.listening::before { border-color: rgba(0,0,0,0.10); animation: ring1 2.4s ease-in-out infinite; }
-  .orb.listening::after  { border-color: rgba(0,0,0,0.05); animation: ring2 2.4s ease-in-out infinite 0.4s; }
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(36px, 7vw, 56px);
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: -0.02em;
+            margin-bottom: 12px;
+        }
 
-  .orb.detected-ne { border-color: var(--nepali); animation: orbDetect 0.6s ease-out; }
-  .orb.detected-ne::before { border-color: rgba(232,160,69,0.4); }
-  .orb.detected-ne::after  { border-color: rgba(232,160,69,0.15); }
+        .tagline {
+            font-size: 14px;
+            color: var(--muted);
+            font-weight: 300;
+            letter-spacing: 0.05em;
+        }
 
-  .orb.detected-en { border-color: var(--english); animation: orbDetect 0.6s ease-out; }
-  .orb.detected-en::before { border-color: rgba(91,168,232,0.4); }
-  .orb.detected-en::after  { border-color: rgba(91,168,232,0.15); }
+        /* Main orb */
+        .orb-wrap {
+            display: flex;
+            justify-content: center;
+            margin: 16px 0 40px;
+        }
 
-  @keyframes orbPulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.02); }
-  }
-  @keyframes ring1 {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.06); opacity: 0.6; }
-  }
-  @keyframes ring2 {
-    0%, 100% { transform: scale(1); opacity: 0.6; }
-    50% { transform: scale(1.12); opacity: 0.3; }
-  }
-  @keyframes orbDetect {
-    0% { transform: scale(1); }
-    30% { transform: scale(1.12); }
-    60% { transform: scale(0.97); }
-    100% { transform: scale(1); }
-  }
+        .orb {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            border: 1.5px solid var(--idle-ring);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+            transition: border-color 0.4s;
+        }
 
-  .orb-icon {
-    width: 40px; height: 40px;
-    display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.3s;
-  }
-  .orb-icon svg { width: 36px; height: 36px; }
+        .orb::before, .orb::after {
+            content: '';
+            position: absolute;
+            inset: -16px;
+            border-radius: 50%;
+            border: 1px solid var(--idle-ring);
+            transition: all 0.4s;
+        }
 
-  /* Waveform canvas */
-  .waveform-wrap {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 28px;
-    position: relative;
-    overflow: hidden;
-  }
-  .waveform-label {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 10px;
-  }
-  #waveCanvas {
-    width: 100%;
-    height: 72px;
-    display: block;
-  }
+        .orb::after {
+            inset: -32px;
+            border-color: transparent;
+        }
 
-  /* Detection card */
-  .detection-card {
-    border-radius: 16px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    padding: 28px 32px;
-    margin-bottom: 24px;
-    text-align: center;
-    min-height: 140px;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    transition: border-color 0.4s, background 0.4s;
-    position: relative;
-    overflow: hidden;
-  }
-  .detection-card::before {
-    content: '';
-    position: absolute; inset: 0;
-    opacity: 0;
-    transition: opacity 0.5s;
-    pointer-events: none;
-  }
-  .detection-card.ne::before { background: radial-gradient(ellipse at 50% 0%, rgba(232,160,69,0.12) 0%, transparent 70%); opacity: 1; }
-  .detection-card.en::before { background: radial-gradient(ellipse at 50% 0%, rgba(91,168,232,0.12) 0%, transparent 70%); opacity: 1; }
+        .orb.listening {
+            border-color: rgba(0, 0, 0, 0.25);
+            animation: orbPulse 2.4s ease-in-out infinite;
+        }
 
-  .detect-lang {
-    font-family: 'Playfair Display', serif;
-    font-size: 32px;
-    font-weight: 700;
-    margin-bottom: 8px;
-    transition: color 0.3s;
-    animation: fadeUp 0.4s ease-out;
-  }
-  .detect-phrase {
-    font-family: 'DM Mono', monospace;
-    font-size: 13px;
-    color: var(--muted);
-    animation: fadeUp 0.4s ease-out 0.05s both;
-  }
-  .detect-time {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 12px;
-    animation: fadeUp 0.4s ease-out 0.1s both;
-  }
-  .idle-hint {
-    font-size: 14px;
-    color: var(--muted);
-    font-weight: 300;
-  }
+        .orb.listening::before {
+            border-color: rgba(0, 0, 0, 0.10);
+            animation: ring1 2.4s ease-in-out infinite;
+        }
 
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+        .orb.listening::after {
+            border-color: rgba(0, 0, 0, 0.05);
+            animation: ring2 2.4s ease-in-out infinite 0.4s;
+        }
 
-  /* Phrase guide */
-  .phrases {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 28px;
-  }
-  .phrase-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px 20px;
-  }
-  .phrase-lang {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    margin-bottom: 8px;
-  }
-  .phrase-lang.ne { color: var(--nepali); }
-  .phrase-lang.en { color: var(--english); }
-  .phrase-text {
-    font-family: 'Playfair Display', serif;
-    font-size: 18px;
-    font-weight: 700;
-    line-height: 1.3;
-  }
-  .phrase-phonetic {
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: 4px;
-    font-style: italic;
-  }
+        .orb.detected-ne {
+            border-color: var(--nepali);
+            animation: orbDetect 0.6s ease-out;
+        }
 
-  /* Log */
-  .log-wrap {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-    margin-bottom: 28px;
-  }
-  .log-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-  }
-  .log-title {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-  .log-clear {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    background: none;
-    border: none;
-    cursor: pointer;
-    transition: color 0.2s;
-  }
-  .log-clear:hover { color: var(--text); }
-  #logList {
-    list-style: none;
-    max-height: 160px;
-    overflow-y: auto;
-    padding: 8px 0;
-  }
-  #logList:empty::after {
-    content: 'No detections yet';
-    display: block;
-    text-align: center;
-    padding: 20px;
-    font-size: 13px;
-    color: var(--muted);
-    font-family: 'DM Mono', monospace;
-  }
-  .log-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 16px;
-    font-family: 'DM Mono', monospace;
-    font-size: 12px;
-    border-bottom: 1px solid var(--border);
-    animation: fadeUp 0.3s ease-out;
-  }
-  .log-item:last-child { border-bottom: none; }
-  .log-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-  .log-dot.ne { background: var(--nepali); }
-  .log-dot.en { background: var(--english); }
-  .log-phrase { flex: 1; }
-  .log-badge {
-    font-size: 10px;
-    padding: 2px 8px;
-    border-radius: 20px;
-    font-weight: 500;
-  }
-  .log-badge.ne { background: rgba(232,160,69,0.15); color: var(--nepali); }
-  .log-badge.en { background: rgba(91,168,232,0.15); color: var(--english); }
-  .log-ts { color: var(--muted); font-size: 10px; }
+        .orb.detected-ne::before {
+            border-color: rgba(232, 160, 69, 0.4);
+        }
 
-  /* Status bar */
-  .status-bar {
-    display: flex; align-items: center; gap: 8px;
-    padding: 10px 16px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    margin-bottom: 24px;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-  }
-  .status-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: #444;
-    transition: background 0.3s;
-  }
-  .status-dot.active { background: #4caf7d; animation: blink 1.4s ease-in-out infinite; }
-  .status-dot.error  { background: #e85d5d; }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
-  #statusText { flex: 1; }
+        .orb.detected-ne::after {
+            border-color: rgba(232, 160, 69, 0.15);
+        }
 
-  /* Confidence meter */
-  .meter-row {
-    display: flex; align-items: center; gap: 12px;
-    margin-bottom: 6px;
-  }
-  .meter-label {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    width: 110px;
-    flex-shrink: 0;
-  }
-  .meter-bar {
-    flex: 1;
-    height: 4px;
-    background: rgba(0,0,0,0.08);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .meter-fill {
-    height: 100%;
-    width: 0%;
-    border-radius: 2px;
-    transition: width 0.1s linear;
-  }
-  .meter-fill.ne { background: var(--nepali); }
-  .meter-fill.en { background: var(--english); }
-  .meter-val {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    width: 36px;
-    text-align: right;
-  }
+        .orb.detected-en {
+            border-color: var(--english);
+            animation: orbDetect 0.6s ease-out;
+        }
 
-  /* How it works */
-  .how-wrap {
-    border-top: 1px solid var(--border);
-    padding-top: 24px;
-    margin-top: 8px;
-  }
-  .how-title {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 16px;
-  }
-  .how-steps {
-    display: flex; flex-direction: column; gap: 10px;
-  }
-  .how-step {
-    display: flex; gap: 12px; align-items: flex-start;
-  }
-  .step-num {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    min-width: 20px;
-    padding-top: 2px;
-  }
-  .step-text { font-size: 13px; color: var(--muted); line-height: 1.5; }
-  .step-text strong { color: var(--text); font-weight: 500; }
+        .orb.detected-en::before {
+            border-color: rgba(91, 168, 232, 0.4);
+        }
 
-  /* Start button */
-  .start-btn {
-    display: block;
-    width: 100%;
-    padding: 16px;
-    background: transparent;
-    border: 1.5px solid rgba(255,255,255,0.2);
-    border-radius: 12px;
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 15px;
-    font-weight: 500;
-    cursor: pointer;
-    letter-spacing: 0.04em;
-    transition: all 0.25s;
-    margin-bottom: 24px;
-  }
-  .start-btn:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.35); }
-  .start-btn:active { transform: scale(0.98); }
-  .start-btn.active {
-    border-color: #e85d5d;
-    color: #e85d5d;
-  }
+        .orb.detected-en::after {
+            border-color: rgba(91, 168, 232, 0.15);
+        }
 
-  /* Scrollbar */
-  #logList::-webkit-scrollbar { width: 4px; }
-  #logList::-webkit-scrollbar-track { background: transparent; }
-  #logList::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-</style>
+        @keyframes orbPulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.02);
+            }
+        }
+
+        @keyframes ring1 {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.06);
+                opacity: 0.6;
+            }
+        }
+
+        @keyframes ring2 {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 0.6;
+            }
+            50% {
+                transform: scale(1.12);
+                opacity: 0.3;
+            }
+        }
+
+        @keyframes orbDetect {
+            0% {
+                transform: scale(1);
+            }
+            30% {
+                transform: scale(1.12);
+            }
+            60% {
+                transform: scale(0.97);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .orb-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.3s;
+        }
+
+        .orb-icon svg {
+            width: 36px;
+            height: 36px;
+        }
+
+        /* Waveform canvas */
+        .waveform-wrap {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 28px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .waveform-label {
+            font-family: 'DM Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        #waveCanvas {
+            width: 100%;
+            height: 72px;
+            display: block;
+        }
+
+        /* Detection card */
+        .detection-card {
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            padding: 28px 32px;
+            margin-bottom: 24px;
+            text-align: center;
+            min-height: 140px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: border-color 0.4s, background 0.4s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .detection-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+        }
+
+        .detection-card.ne::before {
+            background: radial-gradient(ellipse at 50% 0%, rgba(232, 160, 69, 0.12) 0%, transparent 70%);
+            opacity: 1;
+        }
+
+        .detection-card.en::before {
+            background: radial-gradient(ellipse at 50% 0%, rgba(91, 168, 232, 0.12) 0%, transparent 70%);
+            opacity: 1;
+        }
+
+        .detect-lang {
+            font-family: 'Playfair Display', serif;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            transition: color 0.3s;
+            animation: fadeUp 0.4s ease-out;
+        }
+
+        .detect-phrase {
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            color: var(--muted);
+            animation: fadeUp 0.4s ease-out 0.05s both;
+        }
+
+        .detect-time {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 12px;
+            animation: fadeUp 0.4s ease-out 0.1s both;
+        }
+
+        .idle-hint {
+            font-size: 14px;
+            color: var(--muted);
+            font-weight: 300;
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Phrase guide */
+        .phrases {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+
+        .phrase-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+        }
+
+        .phrase-lang {
+            font-family: 'DM Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .phrase-lang.ne {
+            color: var(--nepali);
+        }
+
+        .phrase-lang.en {
+            color: var(--english);
+        }
+
+        .phrase-text {
+            font-family: 'Playfair Display', serif;
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        .phrase-phonetic {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 4px;
+            font-style: italic;
+        }
+
+        /* Log */
+        .log-wrap {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 28px;
+        }
+
+        .log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .log-title {
+            font-family: 'DM Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .log-clear {
+            font-family: 'DM Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .log-clear:hover {
+            color: var(--text);
+        }
+
+        #logList {
+            list-style: none;
+            max-height: 160px;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+
+        #logList:empty::after {
+            content: 'No detections yet';
+            display: block;
+            text-align: center;
+            padding: 20px;
+            font-size: 13px;
+            color: var(--muted);
+            font-family: 'DM Mono', monospace;
+        }
+
+        .log-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            font-family: 'DM Mono', monospace;
+            font-size: 12px;
+            border-bottom: 1px solid var(--border);
+            animation: fadeUp 0.3s ease-out;
+        }
+
+        .log-item:last-child {
+            border-bottom: none;
+        }
+
+        .log-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .log-dot.ne {
+            background: var(--nepali);
+        }
+
+        .log-dot.en {
+            background: var(--english);
+        }
+
+        .log-phrase {
+            flex: 1;
+        }
+
+        .log-badge {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+
+        .log-badge.ne {
+            background: rgba(232, 160, 69, 0.15);
+            color: var(--nepali);
+        }
+
+        .log-badge.en {
+            background: rgba(91, 168, 232, 0.15);
+            color: var(--english);
+        }
+
+        .log-ts {
+            color: var(--muted);
+            font-size: 10px;
+        }
+
+        /* Status bar */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #444;
+            transition: background 0.3s;
+        }
+
+        .status-dot.active {
+            background: #4caf7d;
+            animation: blink 1.4s ease-in-out infinite;
+        }
+
+        .status-dot.error {
+            background: #e85d5d;
+        }
+
+        @keyframes blink {
+            0%, 100% {
+                opacity: 1
+            }
+            50% {
+                opacity: 0.4
+            }
+        }
+
+        #statusText {
+            flex: 1;
+        }
+
+        /* Confidence meter */
+        .meter-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+
+        .meter-label {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            width: 110px;
+            flex-shrink: 0;
+        }
+
+        .meter-bar {
+            flex: 1;
+            height: 4px;
+            background: rgba(0, 0, 0, 0.08);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .meter-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 2px;
+            transition: width 0.1s linear;
+        }
+
+        .meter-fill.ne {
+            background: var(--nepali);
+        }
+
+        .meter-fill.en {
+            background: var(--english);
+        }
+
+        .meter-val {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            width: 36px;
+            text-align: right;
+        }
+
+        /* How it works */
+        .how-wrap {
+            border-top: 1px solid var(--border);
+            padding-top: 24px;
+            margin-top: 8px;
+        }
+
+        .how-title {
+            font-family: 'DM Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 16px;
+        }
+
+        .how-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .how-step {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .step-num {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            min-width: 20px;
+            padding-top: 2px;
+        }
+
+        .step-text {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .step-text strong {
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        /* Start button */
+        .start-btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            background: transparent;
+            border: 1.5px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            letter-spacing: 0.04em;
+            transition: all 0.25s;
+            margin-bottom: 24px;
+        }
+
+        .start-btn:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.35);
+        }
+
+        .start-btn:active {
+            transform: scale(0.98);
+        }
+
+        .start-btn.active {
+            border-color: #e85d5d;
+            color: #e85d5d;
+        }
+
+        /* Scrollbar */
+        #logList::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #logList::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #logList::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+    </style>
 </head>
 <body>
 <div class="everything">
 
-  <header>
-    <div class="wordmark">Wake Word Engine · Browser Demo</div>
-    <h1>Deepa</h1>
-    <p class="tagline">Bilingual wake word listener — Nepali &amp; English</p>
-  </header>
+    <header>
+        <div class="wordmark">Wake Word Engine · Browser Demo</div>
+        <h1>Deepa</h1>
+        <p class="tagline">Bilingual wake word listener — Nepali &amp;
+            English</p>
+    </header>
 
-  <!-- Status bar -->
-  <div class="status-bar">
-    <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">Click "Start Listening" to initialise microphone</span>
-  </div>
-
-  <!-- Start/Stop -->
-  <button class="start-btn" id="startBtn" onclick="toggleListening()">Start Listening</button>
-
-  <!-- Orb -->
-  <div class="orb-wrap">
-    <div class="orb" id="orb" onclick="toggleListening()">
-      <div class="orb-icon" id="orbIcon">
-        <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="18" cy="14" r="6" stroke="rgba(0,0,0,0.4)" stroke-width="1.5"/>
-          <path d="M8 24c0-5.523 4.477-10 10-10s10 4.477 10 10" stroke="rgba(0,0,0,0.4)" stroke-width="1.5" stroke-linecap="round"/>
-          <line x1="18" y1="26" x2="18" y2="30" stroke="rgba(0,0,0,0.3)" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-      </div>
+    <!-- Status bar -->
+    <div class="status-bar">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Click "Start Listening" to initialise microphone</span>
     </div>
-  </div>
 
-  <!-- Waveform -->
-  <div class="waveform-wrap">
-    <div class="waveform-label">Audio waveform</div>
-    <canvas id="waveCanvas" width="600" height="72"></canvas>
-  </div>
+    <!-- Start/Stop -->
+    <button class="start-btn" id="startBtn" onclick="toggleListening()">Start
+        Listening
+    </button>
 
-  <!-- Confidence meters -->
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:24px;">
-    <div class="waveform-label" style="margin-bottom:14px;">Confidence scores</div>
-    <div class="meter-row">
-      <span class="meter-label">Namaste Deepa</span>
-      <div class="meter-bar"><div class="meter-fill ne" id="meterNe"></div></div>
-      <span class="meter-val" id="meterNeVal">0%</span>
+    <!-- Orb -->
+    <div class="orb-wrap">
+        <div class="orb" id="orb" onclick="toggleListening()">
+            <div class="orb-icon" id="orbIcon">
+                <svg viewBox="0 0 36 36" fill="none"
+                     xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="18" cy="14" r="6" stroke="rgba(0,0,0,0.4)"
+                            stroke-width="1.5"/>
+                    <path d="M8 24c0-5.523 4.477-10 10-10s10 4.477 10 10"
+                          stroke="rgba(0,0,0,0.4)" stroke-width="1.5"
+                          stroke-linecap="round"/>
+                    <line x1="18" y1="26" x2="18" y2="30"
+                          stroke="rgba(0,0,0,0.3)" stroke-width="1.5"
+                          stroke-linecap="round"/>
+                </svg>
+            </div>
+        </div>
     </div>
-    <div class="meter-row">
-      <span class="meter-label">Hey Deepa</span>
-      <div class="meter-bar"><div class="meter-fill en" id="meterEn"></div></div>
-      <span class="meter-val" id="meterEnVal">0%</span>
-    </div>
-  </div>
 
-  <!-- Detection display -->
-  <div class="detection-card" id="detectionCard">
-    <p class="idle-hint">Say a wake phrase to get started…</p>
-  </div>
+    <!-- Waveform -->
+    <div class="waveform-wrap">
+        <div class="waveform-label">Audio waveform</div>
+        <canvas id="waveCanvas" width="600" height="72"></canvas>
+    </div>
 
-  <!-- Phrase guide -->
-  <div class="phrases">
-    <div class="phrase-card">
-      <div class="phrase-lang ne">Nepali</div>
-      <div class="phrase-text">Namaste Deepa</div>
-      <div class="phrase-phonetic">na-mas-te dee-pah</div>
+    <!-- Confidence meters -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:24px;">
+        <div class="waveform-label" style="margin-bottom:14px;">Confidence
+            scores
+        </div>
+        <div class="meter-row">
+            <span class="meter-label">Namaste Deepa</span>
+            <div class="meter-bar">
+                <div class="meter-fill ne" id="meterNe"></div>
+            </div>
+            <span class="meter-val" id="meterNeVal">0%</span>
+        </div>
+        <div class="meter-row">
+            <span class="meter-label">Hey Deepa</span>
+            <div class="meter-bar">
+                <div class="meter-fill en" id="meterEn"></div>
+            </div>
+            <span class="meter-val" id="meterEnVal">0%</span>
+        </div>
     </div>
-    <div class="phrase-card">
-      <div class="phrase-lang en">English</div>
-      <div class="phrase-text">Hey Deepa</div>
-      <div class="phrase-phonetic">hay dee-pah</div>
-    </div>
-  </div>
 
-  <!-- Detection log -->
-  <div class="log-wrap">
-    <div class="log-header">
-      <span class="log-title">Detection log</span>
-      <button class="log-clear" onclick="clearLog()">Clear</button>
+    <!-- Detection display -->
+    <div class="detection-card" id="detectionCard">
+        <p class="idle-hint">Say a wake phrase to get started…</p>
     </div>
-    <ul id="logList"></ul>
-  </div>
 
-  <!-- How it works -->
-  <div class="how-wrap">
-    <div class="how-title">How this works</div>
-    <div class="how-steps">
-      <div class="how-step">
-        <span class="step-num">01</span>
-        <span class="step-text"><strong>Continuous STT</strong> — Web Speech API (`SpeechRecognition`) streams your voice to the browser's built-in speech engine with <code>continuous: true</code> and <code>interimResults: true</code>, so it never stops listening.</span>
-      </div>
-      <div class="how-step">
-        <span class="step-num">02</span>
-        <span class="step-text"><strong>Multi-alternative results</strong> — up to 3 recognition hypotheses per utterance are checked. Each is scored independently so accent variation is captured across alternatives.</span>
-      </div>
-      <div class="how-step">
-        <span class="step-num">03</span>
-        <span class="step-text"><strong>Fuzzy keyword matching</strong> — transcripts are matched using Levenshtein edit-distance against every variant: <em>dipa, deepa, deepaa, deepha, namashte, namasthe, hay, hei, hi…</em> Token-level bigram scanning catches split-word results.</span>
-      </div>
-      <div class="how-step">
-        <span class="step-num">04</span>
-        <span class="step-text"><strong>Threshold + cooldown</strong> — scores above 0.70 fire a detection. A 2.2 s cooldown prevents double-fires. Works in Chrome, Edge, and Safari. Use Chrome for best Nepali phoneme coverage.</span>
-      </div>
+    <!-- Phrase guide -->
+    <div class="phrases">
+        <div class="phrase-card">
+            <div class="phrase-lang ne">Nepali</div>
+            <div class="phrase-text">Namaste Deepa</div>
+            <div class="phrase-phonetic">na-mas-te dee-pah</div>
+        </div>
+        <div class="phrase-card">
+            <div class="phrase-lang en">English</div>
+            <div class="phrase-text">Hey Deepa</div>
+            <div class="phrase-phonetic">hay dee-pah</div>
+        </div>
     </div>
-  </div>
+
+    <!-- Detection log -->
+    <div class="log-wrap">
+        <div class="log-header">
+            <span class="log-title">Detection log</span>
+            <button class="log-clear" onclick="clearLog()">Clear</button>
+        </div>
+        <ul id="logList"></ul>
+    </div>
+
+    <!-- How it works -->
+    <div class="how-wrap">
+        <div class="how-title">How this works</div>
+        <div class="how-steps">
+            <div class="how-step">
+                <span class="step-num">01</span>
+                <span class="step-text"><strong>Continuous STT</strong> — Web Speech API (`SpeechRecognition`) streams your voice to the browser's built-in speech engine with <code>continuous: true</code> and <code>interimResults: true</code>, so it never stops listening.</span>
+            </div>
+            <div class="how-step">
+                <span class="step-num">02</span>
+                <span class="step-text"><strong>Multi-alternative results</strong> — up to 3 recognition hypotheses per utterance are checked. Each is scored independently so accent variation is captured across alternatives.</span>
+            </div>
+            <div class="how-step">
+                <span class="step-num">03</span>
+                <span class="step-text"><strong>Fuzzy keyword matching</strong> — transcripts are matched using Levenshtein edit-distance against every variant: <em>dipa, deepa, deepaa, deepha, namashte, namasthe, hay, hei, hi…</em> Token-level bigram scanning catches split-word results.</span>
+            </div>
+            <div class="how-step">
+                <span class="step-num">04</span>
+                <span class="step-text"><strong>Threshold + cooldown</strong> — scores above 0.70 fire a detection. A 2.2 s cooldown prevents double-fires. Works in Chrome, Edge, and Safari. Use Chrome for best Nepali phoneme coverage.</span>
+            </div>
+        </div>
+    </div>
 
 </div>
 
 <script>
-/*
- * ─────────────────────────────────────────────────────────────────
- *  Deepa Wake-up Word Engine v2
- *  Author:    Santa Basnet
- *  Company:   Wiseyak
- *  Primary:   Web Speech API (SpeechRecognition) — continuous STT
- *  Secondary: Web Audio API analyser — waveform + energy meters
- *
- *  Fuzzy keyword matching covers ALL these spoken variants:
- *  Nepali  → "namaste deepa / dipa / deepaa / namashte / namasthe"
- *  English → "hey deepa / dipa / deepaa / hey dipa / hi deepa"
- *
- *  How scoring works:
- *   1. Browser STT turns speech → text transcript every interim/final result
- *   2. We run fuzzyMatch() on the transcript — Levenshtein + token scan
- *   3. Separate scores for NE and EN keywords accumulate in a short
- *      rolling window; when either exceeds THRESHOLD we fire detection
- *   4. 2 s cooldown prevents repeated fires
- * ─────────────────────────────────────────────────────────────────
- */
+    /*
+     * ─────────────────────────────────────────────────────────────────
+     *  Deepa Wake-up Word Engine v2
+     *  Author:    Santa Basnet
+     *  Company:   Wiseyak
+     *  Primary:   Web Speech API (SpeechRecognition) — continuous STT
+     *  Secondary: Web Audio API analyser — waveform + energy meters
+     *
+     *  Fuzzy keyword matching covers ALL these spoken variants:
+     *  Nepali  → "namaste deepa / dipa / deepaa / namashte / namasthe"
+     *  English → "hey deepa / dipa / deepaa / hey dipa / hi deepa"
+     *
+     *  How scoring works:
+     *   1. Browser STT turns speech → text transcript every interim/final result
+     *   2. We run fuzzyMatch() on the transcript — Levenshtein + token scan
+     *   3. Separate scores for NE and EN keywords accumulate in a short
+     *      rolling window; when either exceeds THRESHOLD we fire detection
+     *   4. 2 s cooldown prevents repeated fires
+     * ─────────────────────────────────────────────────────────────────
+     */
 
-// ── KEYWORD VARIANTS ─────────────────────────────────────────────
-// All the phonetic spellings the STT engine might produce for each phrase.
-// Lowercase, no punctuation — we normalise the transcript the same way.
+    // ── KEYWORD VARIANTS ─────────────────────────────────────────────
+    // All the phonetic spellings the STT engine might produce for each phrase.
+    // Lowercase, no punctuation — we normalise the transcript the same way.
 
-const KEYWORDS = {
-  ne: [
-    // "Namaste Deepa" and all realistic mis-spellings / accent variants
-    'namaste deepa',   'namaste dipa',    'namaste deepaa',
-    'namaste depa',    'namashte deepa',  'namashte dipa',
-    'namasthe deepa',  'namasthe dipa',   'namastay deepa',
-    'namaste deepha',  'namaste diipa',   'namas deepa',
-    'namaste',         // partial — still fire if "deepa" follows in same phrase
-    // token-level: any of these near "deepa" counts
-    'namasté deepa',   'namaskaar deepa', 'namaskara deepa',
-  ],
-  en: [
-    // "Hey Deepa" variants
-    'hey deepa',       'hey dipa',        'hey deepaa',
-    'hey depa',        'hey deepha',      'hey diipa',
-    'hi deepa',        'hi dipa',         'hi deepaa',
-    'hello deepa',     'hello dipa',      'hei deepa',
-    'hay deepa',       'hay dipa',        'a deepa',
-    'hey deepa please','ok deepa',        'okay deepa',
-  ],
-};
+    const KEYWORDS = {
+        ne: [
+            // "Namaste Deepa" and all realistic mis-spellings / accent variants
+            'namaste deepa', 'namaste dipa', 'namaste deepaa',
+            'namaste depa', 'namashte deepa', 'namashte dipa',
+            'namasthe deepa', 'namasthe dipa', 'namastay deepa',
+            'namaste deepha', 'namaste diipa', 'namas deepa',
+            'namaste',         // partial — still fire if "deepa" follows in same phrase
+            // token-level: any of these near "deepa" counts
+            'namasté deepa', 'namaskaar deepa', 'namaskara deepa',
+        ],
+        en: [
+            // "Hey Deepa" variants
+            'hey deepa', 'hey dipa', 'hey deepaa',
+            'hey depa', 'hey deepha', 'hey diipa',
+            'hi deepa', 'hi dipa', 'hi deepaa',
+            'hello deepa', 'hello dipa', 'hei deepa',
+            'hay deepa', 'hay dipa', 'a deepa',
+            'hey deepa please', 'ok deepa', 'okay deepa',
+        ],
+    };
 
-// Name variants for the "deepa" part (used in token scan)
-const DEEPA_TOKENS = ['deepa','dipa','deepaa','depa','deepha','diipa','deepah'];
-const NAMASTE_TOKENS = ['namaste','namasthe','namashte','namastay','namaste','namaskar','namaskaar'];
-const HEY_TOKENS    = ['hey','hi','hello','hei','hay','okay','ok','a'];
+    // Name variants for the "deepa" part (used in token scan)
+    const DEEPA_TOKENS = ['deepa', 'dipa', 'deepaa', 'depa', 'deepha', 'diipa', 'deepah'];
+    const NAMASTE_TOKENS = ['namaste', 'namasthe', 'namashte', 'namastay', 'namaste', 'namaskar', 'namaskaar'];
+    const HEY_TOKENS = ['hey', 'hi', 'hello', 'hei', 'hay', 'okay', 'ok', 'a'];
 
-// ── FUZZY MATCH ENGINE ────────────────────────────────────────────
+    // ── FUZZY MATCH ENGINE ────────────────────────────────────────────
 
-// Levenshtein distance (capped for performance)
-function levenshtein(a, b) {
-  if (Math.abs(a.length - b.length) > LEVENSHTEIN_LENGTH_CAP) return LEVENSHTEIN_INFINITY;
-  const lenA = a.length, lenB = b.length;
-  const dp = Array.from({length: lenA + 1}, (_, i) => [i, ...Array(lenB).fill(0)]);
-  for (let j = 0; j <= lenB; j++) dp[0][j] = j;
-  for (let i = 1; i <= lenA; i++) {
-    for (let j = 1; j <= lenB; j++) {
-      dp[i][j] = a[i-1] === b[j-1]
-        ? dp[i-1][j-1]
-        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
-    }
-  }
-  return dp[lenA][lenB];
-}
-
-// Does word `w` fuzzy-match any token in the list? (≤2 edits)
-function fuzzyInList(word, list, maxDist = FUZZY_DIST_DEEPA) {
-  for (const token of list) {
-    if (levenshtein(word, token) <= maxDist) return true;
-  }
-  return false;
-}
-
-// Score a transcript string against NE and EN keywords.
-// Returns { ne: 0..1, en: 0..1 }
-function scoreTranscript(raw) {
-  const normalised = raw.toLowerCase().replace(RE_STRIP_NON_ALPHA, '').trim();
-  if (!normalised) return { ne: 0, en: 0 };
-
-  let neScore = 0, enScore = 0;
-
-  // 1. Direct substring check (full phrase variants)
-  for (const kw of KEYWORDS.ne) {
-    if (normalised.includes(kw)) { neScore = Math.max(neScore, SCORE_FULL); break; }
-  }
-  for (const kw of KEYWORDS.en) {
-    if (normalised.includes(kw)) { enScore = Math.max(enScore, SCORE_FULL); break; }
-  }
-
-  // 2. Token-level fuzzy scan
-  const words = normalised.split(RE_WHITESPACE_SPLIT);
-  let hasDeepa   = false;
-  let hasNameste = false;
-  let hasHey     = false;
-
-  for (const word of words) {
-    if (fuzzyInList(word, DEEPA_TOKENS,   FUZZY_DIST_DEEPA))   hasDeepa   = true;
-    if (fuzzyInList(word, NAMASTE_TOKENS, FUZZY_DIST_NAMASTE)) hasNameste = true;
-    if (fuzzyInList(word, HEY_TOKENS,     FUZZY_DIST_HEY))     hasHey     = true;
-  }
-
-  if (hasNameste && hasDeepa) neScore = Math.max(neScore, SCORE_TOKEN_BOTH);
-  else if (hasNameste)        neScore = Math.max(neScore, SCORE_TOKEN_NAMASTE); // partial
-  else if (hasDeepa && words.some(word => fuzzyInList(word, NAMASTE_TOKENS, FUZZY_DIST_NAMASTE_LOOSE)))
-                              neScore = Math.max(neScore, SCORE_TOKEN_NAMASTE_LOOSE);
-
-  if (hasHey && hasDeepa)    enScore = Math.max(enScore, SCORE_TOKEN_HEY_DEEPA);
-  else if (hasDeepa)         enScore = Math.max(enScore, SCORE_TOKEN_DEEPA_ONLY); // name alone, low
-
-  // 3. Sliding window bigram scan (catches split recognition)
-  for (let i = 0; i < words.length - 1; i++) {
-    const bigram = words[i] + ' ' + words[i + 1];
-    for (const kw of KEYWORDS.ne) {
-      const editDist = levenshtein(bigram, kw);
-      if (editDist <= BIGRAM_MAX_DIST) neScore = Math.max(neScore, 1 - editDist * BIGRAM_SCORE_PENALTY);
-    }
-    for (const kw of KEYWORDS.en) {
-      const editDist = levenshtein(bigram, kw);
-      if (editDist <= BIGRAM_MAX_DIST) enScore = Math.max(enScore, 1 - editDist * BIGRAM_SCORE_PENALTY);
-    }
-  }
-
-  return { ne: Math.min(1, neScore), en: Math.min(1, enScore) };
-}
-
-// ── CONFIG ────────────────────────────────────────────────────────
-
-// Detection tuning
-const THRESHOLD             = 0.70;   // minimum confidence score to fire a detection
-const COOLDOWN_MS           = 2200;   // ms between detections per language
-const SILENCE_TIMEOUT_MS    = 8000;   // ms of silence before recogniser is restarted
-const REMEMBER_LOGS         = 10;     // LRU log capacity — oldest entry evicted when full
-const ORB_RESET_DELAY_MS    = 900;    // ms before orb returns to listening state after flash
-const RECOGNISER_RESTART_DELAY_MS = 150; // ms delay before restarting recogniser on onend
-
-// Scoring thresholds
-const SCORE_FULL             = 1.0;   // direct substring match
-const SCORE_TOKEN_BOTH       = 0.92;  // both keyword tokens fuzzy-matched
-const SCORE_TOKEN_NAMASTE    = 0.45;  // namaste-only partial match
-const SCORE_TOKEN_NAMASTE_LOOSE = 0.75; // namaste loosely matched near deepa
-const SCORE_TOKEN_HEY_DEEPA  = 0.92;  // hey + deepa matched
-const SCORE_TOKEN_DEEPA_ONLY = 0.35;  // deepa token alone (low confidence)
-const SCORE_STRONG_INTERIM   = 0.88;  // interim result threshold to fire without waiting for final
-
-// Fuzzy matching distances
-const FUZZY_DIST_DEEPA       = 2;    // max edit distance for deepa token match
-const FUZZY_DIST_NAMASTE     = 2;    // max edit distance for namaste token match
-const FUZZY_DIST_HEY         = 1;    // max edit distance for hey token match
-const FUZZY_DIST_NAMASTE_LOOSE = 3;  // looser namaste distance for partial scoring
-const BIGRAM_MAX_DIST        = 3;    // max edit distance for bigram phrase scan
-const BIGRAM_SCORE_PENALTY   = 0.12; // score penalty per edit in bigram scan
-const LEVENSHTEIN_LENGTH_CAP = 4;    // skip levenshtein if length diff exceeds this
-const LEVENSHTEIN_INFINITY   = 99;   // sentinel value returned when length cap hit
-
-// Rolling score (exponential moving average weights)
-const EMA_OLD_WEIGHT         = 0.4;  // weight given to previous rolling score
-const EMA_NEW_WEIGHT         = 0.6;  // weight given to new score
-
-// Regular expressions
-const RE_STRIP_NON_ALPHA     = /[^a-z\s]/g; // removes every char that is not a-z or whitespace
-const RE_WHITESPACE_SPLIT    = /\s+/;        // splits a string on one or more whitespace chars
-
-// Audio / waveform
-const ANALYSER_FFT_SIZE      = 2048; // Web Audio FFT buffer size
-const WAVE_LINE_WIDTH        = 1.5;  // waveform stroke width in px
-const WAVE_ALPHA_MIN         = 0.15; // minimum waveform opacity
-const WAVE_ALPHA_MAX         = 0.7;  // maximum waveform opacity
-const WAVE_RMS_SCALE         = 8;    // RMS amplification for alpha calculation
-const METER_DECAY_STEP       = 0.015;// per-frame confidence meter decay when quiet
-
-// Tone cue (plays on detection)
-const TONE_FREQ_NE           = 528;  // Hz — Nepali detection tone
-const TONE_FREQ_EN           = 440;  // Hz — English detection tone
-const TONE_GAIN_START        = 0.08; // initial oscillator gain
-const TONE_GAIN_END          = 0.001;// final gain (ramp to silence)
-const TONE_DURATION_SEC      = 0.35; // tone length in seconds
-
-// Speech recognition
-const STT_LANG               = 'en-US'; // language code for the STT engine
-const STT_MAX_ALTERNATIVES   = 3;    // number of recognition hypotheses per utterance
-
-// UI status messages
-const MSG_LISTENING          = 'Listening \u2014 say \u201cNamaste Deepa\u201d or \u201cHey Deepa\u201d';
-const MSG_MIC_READY          = 'Microphone ready \u2014 click \u201cStart Listening\u201d';
-const MSG_MIC_REQUESTING     = 'Requesting microphone\u2026';
-const MSG_MIC_DENIED         = 'Microphone permission denied \u2014 please allow access';
-const MSG_MIC_BLOCKED        = 'Microphone blocked \u2014 allow it in your browser site settings';
-const MSG_MIC_REVOKED        = 'Microphone access revoked \u2014 reload the page to re-allow';
-const MSG_MIC_ASK_ONCE       = 'Click \u201cStart Listening\u201d \u2014 you will be asked for mic access once';
-const MSG_MIC_INIT           = 'Click \u201cStart Listening\u201d to initialise microphone';
-const MSG_MIC_READY_RESUME   = 'Mic ready \u2014 click \u201cStart Listening\u201d to resume';
-const MSG_SILENCE_RESTART    = 'Silence detected \u2014 restarting listener\u2026';
-const MSG_STT_NOT_SUPPORTED  = 'SpeechRecognition not supported \u2014 please use Chrome or Edge';
-const MSG_STT_FAILED         = 'SpeechRecognition creation failed';
-const MSG_IDLE_HINT          = 'Say a wake phrase to get started\u2026';
-const MSG_BTN_START          = 'Start Listening';
-const MSG_BTN_STOP           = 'Stop Listening';
-
-// Phrase display strings
-const PHRASE_NE              = 'Namaste Deepa';
-const PHRASE_EN              = 'Hey Deepa';
-const LANG_LABEL_NE          = 'Nepali Language';
-const LANG_LABEL_EN          = 'English Language';
-const LANG_BADGE_NE          = 'Nepali';
-const LANG_BADGE_EN          = 'English';
-
-// Language codes
-const LANG_NE                = 'ne';
-const LANG_EN                = 'en';
-
-// CSS class names
-const CSS_ORB_IDLE           = 'orb';
-const CSS_ORB_LISTENING      = 'orb listening';
-const CSS_ORB_DETECTED_NE    = 'orb detected-ne';
-const CSS_ORB_DETECTED_EN    = 'orb detected-en';
-const CSS_CARD_BASE          = 'detection-card';
-const CSS_STATUS_DOT_BASE    = 'status-dot';
-const CSS_STATUS_DOT_ACTIVE  = 'status-dot active';
-const CSS_STATUS_DOT_ERROR   = 'status-dot error';
-const CSS_BTN_ACTIVE         = 'active';
-
-// Element IDs
-const EL_STATUS_TEXT         = 'statusText';
-const EL_STATUS_DOT          = 'statusDot';
-const EL_START_BTN           = 'startBtn';
-const EL_ORB                 = 'orb';
-const EL_DETECTION_CARD      = 'detectionCard';
-const EL_LOG_LIST            = 'logList';
-const EL_METER_NE            = 'meterNe';
-const EL_METER_NE_VAL        = 'meterNeVal';
-const EL_METER_EN            = 'meterEn';
-const EL_METER_EN_VAL        = 'meterEnVal';
-
-// ── STATE ─────────────────────────────────────────────────────────
-let recog        = null;   // SpeechRecognition instance
-let audioCtx     = null;
-let stream       = null;   // active getUserMedia stream (waveform source)
-let sessionStream = null;  // long-lived stream held for the full page session
-let analyser     = null;
-let isListening  = false;
-let rafId        = null;
-let waveDataArr  = null;
-
-let lastDetect   = { ne: 0, en: 0 };
-let silenceTimer = null; // watchdog — restarts recogniser after silence
-
-// LRU detection log — fixed capacity REMEMBER_LOGS, oldest entry at index 0
-// Each entry: { phrase, cls, lang, ts }
-let detectionLRU = [];
-
-// Rolling score: smooth meter display over last N transcripts
-let rollingNe = 0, rollingEn = 0;
-
-// ── SILENCE WATCHDOG ─────────────────────────────────────────────
-// Resets the watchdog timer every time any speech result arrives.
-// If SILENCE_TIMEOUT elapses with no results, the recogniser is
-// aborted and restarted so it doesn't silently die after a long pause.
-function resetSilenceTimer() {
-  if (!isListening) return;
-  clearTimeout(silenceTimer);
-  silenceTimer = setTimeout(() => {
-    if (!isListening) return;
-    console.log('[Deepa] Silence timeout — restarting recogniser');
-    setStatus(MSG_SILENCE_RESTART, 'active');
-    try { recog && recog.abort(); } catch (_err) {}
-    // onend will fire and restart automatically via the isListening flag
-  }, SILENCE_TIMEOUT_MS);
-}
-
-function stopSilenceWatchdog() {
-  clearTimeout(silenceTimer);
-  silenceTimer = null;
-}
-
-// ── SPEECH RECOGNITION SETUP ─────────────────────────────────────
-function createRecogniser() {
-  const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognitionAPI) return null;
-
-  const recogniser = new SpeechRecognitionAPI();
-  recogniser.continuous      = true;                  // keep running — don't stop after first result
-  recogniser.interimResults  = true;                  // get live partial results as user speaks
-  recogniser.lang            = STT_LANG;              // handles Nepali words phonetically
-  recogniser.maxAlternatives = STT_MAX_ALTERNATIVES;  // get multiple guesses per utterance
-
-  recogniser.onresult = (event) => {
-    // Process every result in this event batch
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const result = event.results[i];
-      // Check all alternatives (up to STT_MAX_ALTERNATIVES)
-      let bestNe = 0, bestEn = 0;
-      for (let altIdx = 0; altIdx < result.length; altIdx++) {
-        const transcript = result[altIdx].transcript;
-        const { ne, en } = scoreTranscript(transcript);
-        bestNe = Math.max(bestNe, ne);
-        bestEn = Math.max(bestEn, en);
-        // Show live transcript in status bar
-        if (transcript.trim()) {
-          setStatus(`Heard: "${transcript.trim()}"`, 'active');
+    // Levenshtein distance (capped for performance)
+    function levenshtein(a, b) {
+        if (Math.abs(a.length - b.length) > LEVENSHTEIN_LENGTH_CAP) return LEVENSHTEIN_INFINITY;
+        const lenA = a.length, lenB = b.length;
+        const dp = Array.from({length: lenA + 1}, (_, i) => [i, ...Array(lenB).fill(0)]);
+        for (let j = 0; j <= lenB; j++) dp[0][j] = j;
+        for (let i = 1; i <= lenA; i++) {
+            for (let j = 1; j <= lenB; j++) {
+                dp[i][j] = a[i - 1] === b[j - 1]
+                    ? dp[i - 1][j - 1]
+                    : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+            }
         }
-      }
-
-      // Update rolling scores (exponential moving average)
-      rollingNe = rollingNe * EMA_OLD_WEIGHT + bestNe * EMA_NEW_WEIGHT;
-      rollingEn = rollingEn * EMA_OLD_WEIGHT + bestEn * EMA_NEW_WEIGHT;
-      updateMeters(rollingNe, rollingEn);
-
-      // Any speech result — reset the silence watchdog
-      resetSilenceTimer();
-
-      const nowMs = Date.now();
-
-      // Fire on final results OR strong interim results
-      const isFinal = result.isFinal;
-      const neReady = bestNe >= THRESHOLD && (nowMs - lastDetect.ne) > COOLDOWN_MS;
-      const enReady = bestEn >= THRESHOLD && (nowMs - lastDetect.en) > COOLDOWN_MS;
-
-      if (neReady && bestNe >= bestEn && (isFinal || bestNe >= SCORE_STRONG_INTERIM)) {
-        lastDetect.ne = nowMs;
-        rollingNe = 0; rollingEn = 0;
-        onDetected(LANG_NE, bestNe, result[0].transcript);
-      } else if (enReady && bestEn > bestNe && (isFinal || bestEn >= SCORE_STRONG_INTERIM)) {
-        lastDetect.en = nowMs;
-        rollingNe = 0; rollingEn = 0;
-        onDetected(LANG_EN, bestEn, result[0].transcript);
-      }
+        return dp[lenA][lenB];
     }
-  };
 
-  recogniser.onerror = (speechError) => {
-    if (speechError.error === 'no-speech') return; // normal — just silence
-    if (speechError.error === 'aborted')   return; // we stopped it
-    setStatus(`Speech error: ${speechError.error}`, 'error');
-    console.warn('SpeechRecognition error:', speechError.error);
-  };
+    // Does word `w` fuzzy-match any token in the list? (≤2 edits)
+    function fuzzyInList(word, list, maxDist = FUZZY_DIST_DEEPA) {
+        for (const token of list) {
+            if (levenshtein(word, token) <= maxDist) return true;
+        }
+        return false;
+    }
 
-  recogniser.onend = () => {
-    // Auto-restart so listening is truly continuous
-    if (isListening) {
-      // Small delay avoids a race condition where abort() triggers onend
-      // before the engine fully tears down
-      setTimeout(() => {
+    // Score a transcript string against NE and EN keywords.
+    // Returns { ne: 0..1, en: 0..1 }
+    function scoreTranscript(raw) {
+        const normalised = raw.toLowerCase().replace(RE_STRIP_NON_ALPHA, '').trim();
+        if (!normalised) return {ne: 0, en: 0};
+
+        let neScore = 0, enScore = 0;
+
+        // 1. Direct substring check (full phrase variants)
+        for (const kw of KEYWORDS.ne) {
+            if (normalised.includes(kw)) {
+                neScore = Math.max(neScore, SCORE_FULL);
+                break;
+            }
+        }
+        for (const kw of KEYWORDS.en) {
+            if (normalised.includes(kw)) {
+                enScore = Math.max(enScore, SCORE_FULL);
+                break;
+            }
+        }
+
+        // 2. Token-level fuzzy scan
+        const words = normalised.split(RE_WHITESPACE_SPLIT);
+        let hasDeepa = false;
+        let hasNameste = false;
+        let hasHey = false;
+
+        for (const word of words) {
+            if (fuzzyInList(word, DEEPA_TOKENS, FUZZY_DIST_DEEPA)) hasDeepa = true;
+            if (fuzzyInList(word, NAMASTE_TOKENS, FUZZY_DIST_NAMASTE)) hasNameste = true;
+            if (fuzzyInList(word, HEY_TOKENS, FUZZY_DIST_HEY)) hasHey = true;
+        }
+
+        if (hasNameste && hasDeepa) neScore = Math.max(neScore, SCORE_TOKEN_BOTH);
+        else if (hasNameste) neScore = Math.max(neScore, SCORE_TOKEN_NAMASTE); // partial
+        else if (hasDeepa && words.some(word => fuzzyInList(word, NAMASTE_TOKENS, FUZZY_DIST_NAMASTE_LOOSE)))
+            neScore = Math.max(neScore, SCORE_TOKEN_NAMASTE_LOOSE);
+
+        if (hasHey && hasDeepa) enScore = Math.max(enScore, SCORE_TOKEN_HEY_DEEPA);
+        else if (hasDeepa) enScore = Math.max(enScore, SCORE_TOKEN_DEEPA_ONLY); // name alone, low
+
+        // 3. Sliding window bigram scan (catches split recognition)
+        for (let i = 0; i < words.length - 1; i++) {
+            const bigram = words[i] + ' ' + words[i + 1];
+            for (const kw of KEYWORDS.ne) {
+                const editDist = levenshtein(bigram, kw);
+                if (editDist <= BIGRAM_MAX_DIST) neScore = Math.max(neScore, 1 - editDist * BIGRAM_SCORE_PENALTY);
+            }
+            for (const kw of KEYWORDS.en) {
+                const editDist = levenshtein(bigram, kw);
+                if (editDist <= BIGRAM_MAX_DIST) enScore = Math.max(enScore, 1 - editDist * BIGRAM_SCORE_PENALTY);
+            }
+        }
+
+        return {ne: Math.min(1, neScore), en: Math.min(1, enScore)};
+    }
+
+    // ── CONFIG ────────────────────────────────────────────────────────
+
+    // Detection tuning
+    const THRESHOLD = 0.70;   // minimum confidence score to fire a detection
+    const COOLDOWN_MS = 2200;   // ms between detections per language
+    const SILENCE_TIMEOUT_MS = 8000;   // ms of silence before recogniser is restarted
+    const REMEMBER_LOGS = 10;     // LRU log capacity — oldest entry evicted when full
+    const ORB_RESET_DELAY_MS = 900;    // ms before orb returns to listening state after flash
+    const RECOGNISER_RESTART_DELAY_MS = 150; // ms delay before restarting recogniser on onend
+
+    // Scoring thresholds
+    const SCORE_FULL = 1.0;   // direct substring match
+    const SCORE_TOKEN_BOTH = 0.92;  // both keyword tokens fuzzy-matched
+    const SCORE_TOKEN_NAMASTE = 0.45;  // namaste-only partial match
+    const SCORE_TOKEN_NAMASTE_LOOSE = 0.75; // namaste loosely matched near deepa
+    const SCORE_TOKEN_HEY_DEEPA = 0.92;  // hey + deepa matched
+    const SCORE_TOKEN_DEEPA_ONLY = 0.35;  // deepa token alone (low confidence)
+    const SCORE_STRONG_INTERIM = 0.88;  // interim result threshold to fire without waiting for final
+
+    // Fuzzy matching distances
+    const FUZZY_DIST_DEEPA = 2;    // max edit distance for deepa token match
+    const FUZZY_DIST_NAMASTE = 2;    // max edit distance for namaste token match
+    const FUZZY_DIST_HEY = 1;    // max edit distance for hey token match
+    const FUZZY_DIST_NAMASTE_LOOSE = 3;  // looser namaste distance for partial scoring
+    const BIGRAM_MAX_DIST = 3;    // max edit distance for bigram phrase scan
+    const BIGRAM_SCORE_PENALTY = 0.12; // score penalty per edit in bigram scan
+    const LEVENSHTEIN_LENGTH_CAP = 4;    // skip levenshtein if length diff exceeds this
+    const LEVENSHTEIN_INFINITY = 99;   // sentinel value returned when length cap hit
+
+    // Rolling score (exponential moving average weights)
+    const EMA_OLD_WEIGHT = 0.4;  // weight given to previous rolling score
+    const EMA_NEW_WEIGHT = 0.6;  // weight given to new score
+
+    // Regular expressions
+    const RE_STRIP_NON_ALPHA = /[^a-z\s]/g; // removes every char that is not a-z or whitespace
+    const RE_WHITESPACE_SPLIT = /\s+/;        // splits a string on one or more whitespace chars
+
+    // Audio / waveform
+    const ANALYSER_FFT_SIZE = 2048; // Web Audio FFT buffer size
+    const WAVE_LINE_WIDTH = 1.5;  // waveform stroke width in px
+    const WAVE_ALPHA_MIN = 0.15; // minimum waveform opacity
+    const WAVE_ALPHA_MAX = 0.7;  // maximum waveform opacity
+    const WAVE_RMS_SCALE = 8;    // RMS amplification for alpha calculation
+    const METER_DECAY_STEP = 0.015;// per-frame confidence meter decay when quiet
+
+    // Tone cue (plays on detection)
+    const TONE_FREQ_NE = 528;  // Hz — Nepali detection tone
+    const TONE_FREQ_EN = 440;  // Hz — English detection tone
+    const TONE_GAIN_START = 0.08; // initial oscillator gain
+    const TONE_GAIN_END = 0.001;// final gain (ramp to silence)
+    const TONE_DURATION_SEC = 0.35; // tone length in seconds
+
+    // Speech recognition
+    const STT_LANG = 'en-US'; // language code for the STT engine
+    const STT_MAX_ALTERNATIVES = 3;    // number of recognition hypotheses per utterance
+
+    // UI status messages
+    const MSG_LISTENING = 'Listening \u2014 say \u201cNamaste Deepa\u201d or \u201cHey Deepa\u201d';
+    const MSG_MIC_READY = 'Microphone ready \u2014 click \u201cStart Listening\u201d';
+    const MSG_MIC_REQUESTING = 'Requesting microphone\u2026';
+    const MSG_MIC_DENIED = 'Microphone permission denied \u2014 please allow access';
+    const MSG_MIC_BLOCKED = 'Microphone blocked \u2014 allow it in your browser site settings';
+    const MSG_MIC_REVOKED = 'Microphone access revoked \u2014 reload the page to re-allow';
+    const MSG_MIC_ASK_ONCE = 'Click \u201cStart Listening\u201d \u2014 you will be asked for mic access once';
+    const MSG_MIC_INIT = 'Click \u201cStart Listening\u201d to initialise microphone';
+    const MSG_MIC_READY_RESUME = 'Mic ready \u2014 click \u201cStart Listening\u201d to resume';
+    const MSG_SILENCE_RESTART = 'Silence detected \u2014 restarting listener\u2026';
+    const MSG_STT_NOT_SUPPORTED = 'SpeechRecognition not supported \u2014 please use Chrome or Edge';
+    const MSG_STT_FAILED = 'SpeechRecognition creation failed';
+    const MSG_IDLE_HINT = 'Say a wake phrase to get started\u2026';
+    const MSG_BTN_START = 'Start Listening';
+    const MSG_BTN_STOP = 'Stop Listening';
+
+    // Phrase display strings
+    const PHRASE_NE = 'Namaste Deepa';
+    const PHRASE_EN = 'Hey Deepa';
+    const LANG_LABEL_NE = 'Nepali Language';
+    const LANG_LABEL_EN = 'English Language';
+    const LANG_BADGE_NE = 'Nepali';
+    const LANG_BADGE_EN = 'English';
+
+    // Language codes
+    const LANG_NE = 'ne';
+    const LANG_EN = 'en';
+
+    // CSS class names
+    const CSS_ORB_IDLE = 'orb';
+    const CSS_ORB_LISTENING = 'orb listening';
+    const CSS_ORB_DETECTED_NE = 'orb detected-ne';
+    const CSS_ORB_DETECTED_EN = 'orb detected-en';
+    const CSS_CARD_BASE = 'detection-card';
+    const CSS_STATUS_DOT_BASE = 'status-dot';
+    const CSS_STATUS_DOT_ACTIVE = 'status-dot active';
+    const CSS_STATUS_DOT_ERROR = 'status-dot error';
+    const CSS_BTN_ACTIVE = 'active';
+
+    // Element IDs
+    const EL_STATUS_TEXT = 'statusText';
+    const EL_STATUS_DOT = 'statusDot';
+    const EL_START_BTN = 'startBtn';
+    const EL_ORB = 'orb';
+    const EL_DETECTION_CARD = 'detectionCard';
+    const EL_LOG_LIST = 'logList';
+    const EL_METER_NE = 'meterNe';
+    const EL_METER_NE_VAL = 'meterNeVal';
+    const EL_METER_EN = 'meterEn';
+    const EL_METER_EN_VAL = 'meterEnVal';
+
+    // ── STATE ─────────────────────────────────────────────────────────
+    let recog = null;   // SpeechRecognition instance
+    let audioCtx = null;
+    let stream = null;   // active getUserMedia stream (waveform source)
+    let sessionStream = null;  // long-lived stream held for the full page session
+    let analyser = null;
+    let isListening = false;
+    let rafId = null;
+    let waveDataArr = null;
+
+    let lastDetect = {ne: 0, en: 0};
+    let silenceTimer = null; // watchdog — restarts recogniser after silence
+
+    // LRU detection log — fixed capacity REMEMBER_LOGS, oldest entry at index 0
+    // Each entry: { phrase, cls, lang, ts }
+    let detectionLRU = [];
+
+    // Rolling score: smooth meter display over last N transcripts
+    let rollingNe = 0, rollingEn = 0;
+
+    // ── SILENCE WATCHDOG ─────────────────────────────────────────────
+    // Resets the watchdog timer every time any speech result arrives.
+    // If SILENCE_TIMEOUT elapses with no results, the recogniser is
+    // aborted and restarted so it doesn't silently die after a long pause.
+    function resetSilenceTimer() {
         if (!isListening) return;
-        try { recogniser.start(); } catch (_err) { /* already starting */ }
-        // Resume silence watchdog after restart
-        resetSilenceTimer();
-      }, RECOGNISER_RESTART_DELAY_MS);
+        clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => {
+            if (!isListening) return;
+            console.log('[Deepa] Silence timeout — restarting recogniser');
+            setStatus(MSG_SILENCE_RESTART, 'active');
+            try {
+                recog && recog.abort();
+            } catch (_err) {
+            }
+            // onend will fire and restart automatically via the isListening flag
+        }, SILENCE_TIMEOUT_MS);
     }
-  };
 
-  return recogniser;
-}
+    function stopSilenceWatchdog() {
+        clearTimeout(silenceTimer);
+        silenceTimer = null;
+    }
 
-// ── DETECTION HANDLER ─────────────────────────────────────────────
-function onDetected(lang, score, transcript) {
-  const isNe     = lang === LANG_NE;
-  const phrase   = isNe ? PHRASE_NE       : PHRASE_EN;
-  const langName = isNe ? LANG_LABEL_NE   : LANG_LABEL_EN;
-  const color    = isNe ? 'var(--nepali)' : 'var(--english)';
-  const cls      = isNe ? LANG_NE         : LANG_EN;
-  const ts       = new Date().toLocaleTimeString();
-  const pct      = Math.min(100, Math.round(score * 100));
-  const heard    = transcript ? `"${transcript.trim()}"` : '';
+    // ── SPEECH RECOGNITION SETUP ─────────────────────────────────────
+    function createRecogniser() {
+        const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognitionAPI) return null;
 
-  // Detection card
-  const card = document.getElementById(EL_DETECTION_CARD);
-  card.className = CSS_CARD_BASE + ' ' + cls;
-  card.innerHTML = `
+        const recogniser = new SpeechRecognitionAPI();
+        recogniser.continuous = true;                  // keep running — don't stop after first result
+        recogniser.interimResults = true;                  // get live partial results as user speaks
+        recogniser.lang = STT_LANG;              // handles Nepali words phonetically
+        recogniser.maxAlternatives = STT_MAX_ALTERNATIVES;  // get multiple guesses per utterance
+
+        recogniser.onresult = (event) => {
+            // Process every result in this event batch
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const result = event.results[i];
+                // Check all alternatives (up to STT_MAX_ALTERNATIVES)
+                let bestNe = 0, bestEn = 0;
+                for (let altIdx = 0; altIdx < result.length; altIdx++) {
+                    const transcript = result[altIdx].transcript;
+                    const {ne, en} = scoreTranscript(transcript);
+                    bestNe = Math.max(bestNe, ne);
+                    bestEn = Math.max(bestEn, en);
+                    // Show live transcript in status bar
+                    if (transcript.trim()) {
+                        setStatus(`Heard: "${transcript.trim()}"`, 'active');
+                    }
+                }
+
+                // Update rolling scores (exponential moving average)
+                rollingNe = rollingNe * EMA_OLD_WEIGHT + bestNe * EMA_NEW_WEIGHT;
+                rollingEn = rollingEn * EMA_OLD_WEIGHT + bestEn * EMA_NEW_WEIGHT;
+                updateMeters(rollingNe, rollingEn);
+
+                // Any speech result — reset the silence watchdog
+                resetSilenceTimer();
+
+                const nowMs = Date.now();
+
+                // Fire on final results OR strong interim results
+                const isFinal = result.isFinal;
+                const neReady = bestNe >= THRESHOLD && (nowMs - lastDetect.ne) > COOLDOWN_MS;
+                const enReady = bestEn >= THRESHOLD && (nowMs - lastDetect.en) > COOLDOWN_MS;
+
+                if (neReady && bestNe >= bestEn && (isFinal || bestNe >= SCORE_STRONG_INTERIM)) {
+                    lastDetect.ne = nowMs;
+                    rollingNe = 0;
+                    rollingEn = 0;
+                    onDetected(LANG_NE, bestNe, result[0].transcript);
+                } else if (enReady && bestEn > bestNe && (isFinal || bestEn >= SCORE_STRONG_INTERIM)) {
+                    lastDetect.en = nowMs;
+                    rollingNe = 0;
+                    rollingEn = 0;
+                    onDetected(LANG_EN, bestEn, result[0].transcript);
+                }
+            }
+        };
+
+        recogniser.onerror = (speechError) => {
+            if (speechError.error === 'no-speech') return; // normal — just silence
+            if (speechError.error === 'aborted') return; // we stopped it
+            setStatus(`Speech error: ${speechError.error}`, 'error');
+            console.warn('SpeechRecognition error:', speechError.error);
+        };
+
+        recogniser.onend = () => {
+            // Auto-restart so listening is truly continuous
+            if (isListening) {
+                // Small delay avoids a race condition where abort() triggers onend
+                // before the engine fully tears down
+                setTimeout(() => {
+                    if (!isListening) return;
+                    try {
+                        recogniser.start();
+                    } catch (_err) { /* already starting */
+                    }
+                    // Resume silence watchdog after restart
+                    resetSilenceTimer();
+                }, RECOGNISER_RESTART_DELAY_MS);
+            }
+        };
+
+        return recogniser;
+    }
+
+    // ── DETECTION HANDLER ─────────────────────────────────────────────
+    function onDetected(lang, score, transcript) {
+        const isNe = lang === LANG_NE;
+        const phrase = isNe ? PHRASE_NE : PHRASE_EN;
+        const langName = isNe ? LANG_LABEL_NE : LANG_LABEL_EN;
+        const color = isNe ? 'var(--nepali)' : 'var(--english)';
+        const cls = isNe ? LANG_NE : LANG_EN;
+        const ts = new Date().toLocaleTimeString();
+        const pct = Math.min(100, Math.round(score * 100));
+        const heard = transcript ? `"${transcript.trim()}"` : '';
+
+        // Detection card
+        const card = document.getElementById(EL_DETECTION_CARD);
+        card.className = CSS_CARD_BASE + ' ' + cls;
+        card.innerHTML = `
     <div class="detect-lang" style="color:${color}">${langName}</div>
     <div class="detect-phrase">${phrase}</div>
     <div class="detect-time">detected at ${ts} · confidence ${pct}%</div>
     ${heard ? `<div class="detect-time" style="margin-top:4px;font-style:italic">heard: ${heard}</div>` : ''}
   `;
 
-  // Orb flash
-  const orbEl = document.getElementById(EL_ORB);
-  orbEl.className = isNe ? CSS_ORB_DETECTED_NE : CSS_ORB_DETECTED_EN;
-  setTimeout(() => { if (isListening) orbEl.className = CSS_ORB_LISTENING; }, ORB_RESET_DELAY_MS);
+        // Orb flash
+        const orbEl = document.getElementById(EL_ORB);
+        orbEl.className = isNe ? CSS_ORB_DETECTED_NE : CSS_ORB_DETECTED_EN;
+        setTimeout(() => {
+            if (isListening) orbEl.className = CSS_ORB_LISTENING;
+        }, ORB_RESET_DELAY_MS);
 
-  // ── LRU log update ────────────────────────────────────────────────
-  // Push newest entry; evict the oldest if capacity is exceeded.
-  detectionLRU.push({ phrase, cls, lang: isNe ? LANG_BADGE_NE : LANG_BADGE_EN, ts });
-  if (detectionLRU.length > REMEMBER_LOGS) detectionLRU.shift(); // evict oldest
-  renderLog();
+        // ── LRU log update ────────────────────────────────────────────────
+        // Push newest entry; evict the oldest if capacity is exceeded.
+        detectionLRU.push({
+            phrase,
+            cls,
+            lang: isNe ? LANG_BADGE_NE : LANG_BADGE_EN,
+            ts
+        });
+        if (detectionLRU.length > REMEMBER_LOGS) detectionLRU.shift(); // evict oldest
+        renderLog();
 
-  setStatus(MSG_LISTENING, 'active');
+        setStatus(MSG_LISTENING, 'active');
 
-  // Subtle audio cue
-  try {
-    if (audioCtx && audioCtx.state === 'running') {
-      const oscillator = audioCtx.createOscillator();
-      const gainNode   = audioCtx.createGain();
-      oscillator.connect(gainNode); gainNode.connect(audioCtx.destination);
-      oscillator.frequency.value = isNe ? TONE_FREQ_NE : TONE_FREQ_EN;
-      gainNode.gain.setValueAtTime(TONE_GAIN_START, audioCtx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(TONE_GAIN_END, audioCtx.currentTime + TONE_DURATION_SEC);
-      oscillator.start(); oscillator.stop(audioCtx.currentTime + TONE_DURATION_SEC);
+        // Subtle audio cue
+        try {
+            if (audioCtx && audioCtx.state === 'running') {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.frequency.value = isNe ? TONE_FREQ_NE : TONE_FREQ_EN;
+                gainNode.gain.setValueAtTime(TONE_GAIN_START, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(TONE_GAIN_END, audioCtx.currentTime + TONE_DURATION_SEC);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + TONE_DURATION_SEC);
+            }
+        } catch (_err) {
+        }
     }
-  } catch (_err) {}
-}
 
-// ── METERS ────────────────────────────────────────────────────────
-function updateMeters(neScore, enScore) {
-  document.getElementById(EL_METER_NE).style.width     = Math.round(Math.min(1, neScore) * 100) + '%';
-  document.getElementById(EL_METER_NE_VAL).textContent = Math.round(Math.min(1, neScore) * 100) + '%';
-  document.getElementById(EL_METER_EN).style.width     = Math.round(Math.min(1, enScore) * 100) + '%';
-  document.getElementById(EL_METER_EN_VAL).textContent = Math.round(Math.min(1, enScore) * 100) + '%';
-}
-
-// ── WAVEFORM ──────────────────────────────────────────────────────
-const waveCanvas = document.getElementById('waveCanvas');
-const waveCtx2d  = waveCanvas.getContext('2d');
-
-function drawWave() {
-  if (!analyser || !waveDataArr) { rafId = requestAnimationFrame(drawWave); return; }
-  analyser.getFloatTimeDomainData(waveDataArr);
-
-  const devicePixelRatio = window.devicePixelRatio || 1;
-  const canvasWidth  = waveCanvas.offsetWidth  * devicePixelRatio || 600;
-  const canvasHeight = waveCanvas.offsetHeight * devicePixelRatio || 72;
-  if (waveCanvas.width !== canvasWidth || waveCanvas.height !== canvasHeight) {
-    waveCanvas.width = canvasWidth; waveCanvas.height = canvasHeight;
-  }
-
-  waveCtx2d.clearRect(0, 0, canvasWidth, canvasHeight);
-
-  // Energy-reactive colour
-  let rms = 0;
-  for (const sampleValue of waveDataArr) rms += sampleValue * sampleValue;
-  rms = Math.sqrt(rms / waveDataArr.length);
-  const alpha = Math.min(WAVE_ALPHA_MAX, WAVE_ALPHA_MIN + rms * WAVE_RMS_SCALE);
-
-  waveCtx2d.strokeStyle = `rgba(0,0,0,${alpha})`;
-  waveCtx2d.lineWidth   = WAVE_LINE_WIDTH;
-  waveCtx2d.beginPath();
-  const sliceWidth = canvasWidth / waveDataArr.length;
-  let xPos = 0;
-  for (let i = 0; i < waveDataArr.length; i++) {
-    const sampleValue = (waveDataArr[i] * 0.5 + 0.5) * canvasHeight;
-    i === 0 ? waveCtx2d.moveTo(xPos, sampleValue) : waveCtx2d.lineTo(xPos, sampleValue);
-    xPos += sliceWidth;
-  }
-  waveCtx2d.stroke();
-
-  // Slowly decay meters toward 0 when quiet (visual polish)
-  rollingNe = Math.max(0, rollingNe - METER_DECAY_STEP);
-  rollingEn = Math.max(0, rollingEn - METER_DECAY_STEP);
-  updateMeters(rollingNe, rollingEn);
-
-  rafId = requestAnimationFrame(drawWave);
-}
-
-// ── START / STOP ──────────────────────────────────────────────────
-async function toggleListening() {
-  isListening ? stopListening() : await startListening();
-}
-
-async function startListening() {
-  // Check browser support
-  const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognitionAPI) {
-    setStatus(MSG_STT_NOT_SUPPORTED, 'error');
-    return;
-  }
-
-  // Reuse the session stream if already obtained (no second permission prompt)
-  if (!sessionStream || sessionStream.getTracks().every(track => track.readyState === 'ended')) {
-    setStatus(MSG_MIC_REQUESTING, 'idle');
-    try {
-      sessionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (permError) {
-      setStatus(MSG_MIC_DENIED, 'error');
-      document.getElementById(EL_STATUS_DOT).className = CSS_STATUS_DOT_ERROR;
-      return;
+    // ── METERS ────────────────────────────────────────────────────────
+    function updateMeters(neScore, enScore) {
+        document.getElementById(EL_METER_NE).style.width = Math.round(Math.min(1, neScore) * 100) + '%';
+        document.getElementById(EL_METER_NE_VAL).textContent = Math.round(Math.min(1, neScore) * 100) + '%';
+        document.getElementById(EL_METER_EN).style.width = Math.round(Math.min(1, enScore) * 100) + '%';
+        document.getElementById(EL_METER_EN_VAL).textContent = Math.round(Math.min(1, enScore) * 100) + '%';
     }
-  }
-  stream = sessionStream; // point to the session-wide stream
 
-  // Audio context for waveform only
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const micSourceNode = audioCtx.createMediaStreamSource(stream);
-  analyser  = audioCtx.createAnalyser();
-  analyser.fftSize = ANALYSER_FFT_SIZE;
-  waveDataArr = new Float32Array(analyser.fftSize);
-  micSourceNode.connect(analyser);
-  // Do NOT connect to destination — prevents mic feedback
+    // ── WAVEFORM ──────────────────────────────────────────────────────
+    const waveCanvas = document.getElementById('waveCanvas');
+    const waveCtx2d = waveCanvas.getContext('2d');
 
-  // Start speech recognition
-  recog = createRecogniser();
-  if (!recog) {
-    setStatus(MSG_STT_FAILED, 'error');
-    return;
-  }
-  recog.start();
+    function drawWave() {
+        if (!analyser || !waveDataArr) {
+            rafId = requestAnimationFrame(drawWave);
+            return;
+        }
+        analyser.getFloatTimeDomainData(waveDataArr);
 
-  isListening = true;
-  document.getElementById(EL_ORB).className = CSS_ORB_LISTENING;
-  document.getElementById(EL_START_BTN).textContent = MSG_BTN_STOP;
-  document.getElementById(EL_START_BTN).classList.add(CSS_BTN_ACTIVE);
-  setStatus(MSG_LISTENING, 'active');
-  resetSilenceTimer();
-  drawWave();
-}
+        const devicePixelRatio = window.devicePixelRatio || 1;
+        const canvasWidth = waveCanvas.offsetWidth * devicePixelRatio || 600;
+        const canvasHeight = waveCanvas.offsetHeight * devicePixelRatio || 72;
+        if (waveCanvas.width !== canvasWidth || waveCanvas.height !== canvasHeight) {
+            waveCanvas.width = canvasWidth;
+            waveCanvas.height = canvasHeight;
+        }
 
-function stopListening() {
-  isListening = false;
-  stopSilenceWatchdog(); // cancel watchdog before aborting
+        waveCtx2d.clearRect(0, 0, canvasWidth, canvasHeight);
 
-  if (recog)    { recog.abort(); recog = null; }
-  if (analyser) { analyser.disconnect(); analyser = null; }
-  if (audioCtx) { audioCtx.close(); audioCtx = null; }
-  // NOTE: do NOT stop sessionStream tracks here — keeping the stream alive
-  // means the browser keeps the mic permission grant for the whole session
-  // and will NOT re-prompt the next time Start Listening is clicked.
-  stream = null;
-  cancelAnimationFrame(rafId);
+        // Energy-reactive colour
+        let rms = 0;
+        for (const sampleValue of waveDataArr) rms += sampleValue * sampleValue;
+        rms = Math.sqrt(rms / waveDataArr.length);
+        const alpha = Math.min(WAVE_ALPHA_MAX, WAVE_ALPHA_MIN + rms * WAVE_RMS_SCALE);
 
-  waveDataArr = null;
-  rollingNe = 0; rollingEn = 0;
-  updateMeters(0, 0);
-  waveCtx2d.clearRect(0, 0, waveCanvas.width, waveCanvas.height);
+        waveCtx2d.strokeStyle = `rgba(0,0,0,${alpha})`;
+        waveCtx2d.lineWidth = WAVE_LINE_WIDTH;
+        waveCtx2d.beginPath();
+        const sliceWidth = canvasWidth / waveDataArr.length;
+        let xPos = 0;
+        for (let i = 0; i < waveDataArr.length; i++) {
+            const sampleValue = (waveDataArr[i] * 0.5 + 0.5) * canvasHeight;
+            i === 0 ? waveCtx2d.moveTo(xPos, sampleValue) : waveCtx2d.lineTo(xPos, sampleValue);
+            xPos += sliceWidth;
+        }
+        waveCtx2d.stroke();
 
-  document.getElementById(EL_ORB).className     = CSS_ORB_IDLE;
-  document.getElementById(EL_START_BTN).textContent = MSG_BTN_START;
-  document.getElementById(EL_START_BTN).classList.remove(CSS_BTN_ACTIVE);
-  setStatus(MSG_MIC_READY_RESUME, 'idle');
-}
+        // Slowly decay meters toward 0 when quiet (visual polish)
+        rollingNe = Math.max(0, rollingNe - METER_DECAY_STEP);
+        rollingEn = Math.max(0, rollingEn - METER_DECAY_STEP);
+        updateMeters(rollingNe, rollingEn);
 
-// ── UTILS ─────────────────────────────────────────────────────────
-function setStatus(msg, type) {
-  document.getElementById(EL_STATUS_TEXT).textContent = msg;
-  const statusDot = document.getElementById(EL_STATUS_DOT);
-  if      (type === 'active') statusDot.className = CSS_STATUS_DOT_ACTIVE;
-  else if (type === 'error')  statusDot.className = CSS_STATUS_DOT_ERROR;
-  else                        statusDot.className = CSS_STATUS_DOT_BASE;
-}
+        rafId = requestAnimationFrame(drawWave);
+    }
 
-// ── LOG RENDERER ──────────────────────────────────────────────────
-// Rebuilds #logList from detectionLRU, showing newest entry first.
-function renderLog() {
-  const logList = document.getElementById(EL_LOG_LIST);
-  logList.innerHTML = '';
-  // Iterate in reverse so index 0 (oldest) appears at the bottom
-  for (let i = detectionLRU.length - 1; i >= 0; i--) {
-    const { phrase, cls, lang, ts } = detectionLRU[i];
-    const listItem = document.createElement('li');
-    listItem.className = 'log-item';
-    listItem.innerHTML = `
+    // ── START / STOP ──────────────────────────────────────────────────
+    async function toggleListening() {
+        isListening ? stopListening() : await startListening();
+    }
+
+    async function startListening() {
+        // Check browser support
+        const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognitionAPI) {
+            setStatus(MSG_STT_NOT_SUPPORTED, 'error');
+            return;
+        }
+
+        // Reuse the session stream if already obtained (no second permission prompt)
+        if (!sessionStream || sessionStream.getTracks().every(track => track.readyState === 'ended')) {
+            setStatus(MSG_MIC_REQUESTING, 'idle');
+            try {
+                sessionStream = await navigator.mediaDevices.getUserMedia({audio: true});
+            } catch (permError) {
+                setStatus(MSG_MIC_DENIED, 'error');
+                document.getElementById(EL_STATUS_DOT).className = CSS_STATUS_DOT_ERROR;
+                return;
+            }
+        }
+        stream = sessionStream; // point to the session-wide stream
+
+        // Audio context for waveform only
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const micSourceNode = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = ANALYSER_FFT_SIZE;
+        waveDataArr = new Float32Array(analyser.fftSize);
+        micSourceNode.connect(analyser);
+        // Do NOT connect to destination — prevents mic feedback
+
+        // Start speech recognition
+        recog = createRecogniser();
+        if (!recog) {
+            setStatus(MSG_STT_FAILED, 'error');
+            return;
+        }
+        recog.start();
+
+        isListening = true;
+        document.getElementById(EL_ORB).className = CSS_ORB_LISTENING;
+        document.getElementById(EL_START_BTN).textContent = MSG_BTN_STOP;
+        document.getElementById(EL_START_BTN).classList.add(CSS_BTN_ACTIVE);
+        setStatus(MSG_LISTENING, 'active');
+        resetSilenceTimer();
+        drawWave();
+    }
+
+    function stopListening() {
+        isListening = false;
+        stopSilenceWatchdog(); // cancel watchdog before aborting
+
+        if (recog) {
+            recog.abort();
+            recog = null;
+        }
+        if (analyser) {
+            analyser.disconnect();
+            analyser = null;
+        }
+        if (audioCtx) {
+            audioCtx.close();
+            audioCtx = null;
+        }
+        // NOTE: do NOT stop sessionStream tracks here — keeping the stream alive
+        // means the browser keeps the mic permission grant for the whole session
+        // and will NOT re-prompt the next time Start Listening is clicked.
+        stream = null;
+        cancelAnimationFrame(rafId);
+
+        waveDataArr = null;
+        rollingNe = 0;
+        rollingEn = 0;
+        updateMeters(0, 0);
+        waveCtx2d.clearRect(0, 0, waveCanvas.width, waveCanvas.height);
+
+        document.getElementById(EL_ORB).className = CSS_ORB_IDLE;
+        document.getElementById(EL_START_BTN).textContent = MSG_BTN_START;
+        document.getElementById(EL_START_BTN).classList.remove(CSS_BTN_ACTIVE);
+        setStatus(MSG_MIC_READY_RESUME, 'idle');
+    }
+
+    // ── UTILS ─────────────────────────────────────────────────────────
+    function setStatus(msg, type) {
+        document.getElementById(EL_STATUS_TEXT).textContent = msg;
+        const statusDot = document.getElementById(EL_STATUS_DOT);
+        if (type === 'active') statusDot.className = CSS_STATUS_DOT_ACTIVE;
+        else if (type === 'error') statusDot.className = CSS_STATUS_DOT_ERROR;
+        else statusDot.className = CSS_STATUS_DOT_BASE;
+    }
+
+    // ── LOG RENDERER ──────────────────────────────────────────────────
+    // Rebuilds #logList from detectionLRU, showing newest entry first.
+    function renderLog() {
+        const logList = document.getElementById(EL_LOG_LIST);
+        logList.innerHTML = '';
+        // Iterate in reverse so index 0 (oldest) appears at the bottom
+        for (let i = detectionLRU.length - 1; i >= 0; i--) {
+            const {phrase, cls, lang, ts} = detectionLRU[i];
+            const listItem = document.createElement('li');
+            listItem.className = 'log-item';
+            listItem.innerHTML = `
       <div class="log-dot ${cls}"></div>
       <span class="log-phrase">${phrase}</span>
       <span class="log-badge ${cls}">${lang}</span>
       <span class="log-ts">${ts}</span>
     `;
-    logList.appendChild(listItem);
-  }
-}
-
-function clearLog() {
-  detectionLRU = [];   // reset LRU store
-  renderLog();         // wipe DOM
-  const card = document.getElementById(EL_DETECTION_CARD);
-  card.className = CSS_CARD_BASE;
-  card.innerHTML = `<p class="idle-hint">${MSG_IDLE_HINT}</p>`;
-}
-
-// ── INIT ──────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', async () => {
-  const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognitionAPI) {
-    setStatus(MSG_STT_NOT_SUPPORTED, 'error');
-    document.getElementById(EL_START_BTN).disabled = true;
-    return;
-  }
-
-  // Pre-request microphone permission once on page load.
-  // This means the user sees the browser "Allow microphone" dialog only ONCE
-  // per page load; all subsequent startListening calls reuse this stream.
-  try {
-    const permState = await navigator.permissions.query({ name: 'microphone' });
-    if (permState.state === 'granted') {
-      // Already allowed from a previous visit — silently pre-warm the stream
-      sessionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      setStatus(MSG_MIC_READY, 'idle');
-    } else if (permState.state === 'denied') {
-      setStatus(MSG_MIC_BLOCKED, 'error');
-      document.getElementById(EL_STATUS_DOT).className = CSS_STATUS_DOT_ERROR;
-    } else {
-      // 'prompt' — will ask when Start is clicked; pre-request now so it
-      // only happens once for the whole session
-      setStatus(MSG_MIC_ASK_ONCE, 'idle');
-      sessionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      setStatus(MSG_MIC_READY, 'idle');
+            logList.appendChild(listItem);
+        }
     }
 
-    // If permission changes later (e.g. user revokes it), update the UI
-    permState.onchange = () => {
-      if (permState.state === 'denied') {
-        if (isListening) stopListening();
-        sessionStream = null;
-        setStatus(MSG_MIC_REVOKED, 'error');
-      }
-    };
-  } catch (_permError) {
-    // navigator.permissions may not be available in all browsers
-    setStatus(MSG_MIC_INIT, 'idle');
-  }
-});
+    function clearLog() {
+        detectionLRU = [];   // reset LRU store
+        renderLog();         // wipe DOM
+        const card = document.getElementById(EL_DETECTION_CARD);
+        card.className = CSS_CARD_BASE;
+        card.innerHTML = `<p class="idle-hint">${MSG_IDLE_HINT}</p>`;
+    }
 
-// Release the session stream cleanly when the page is closed/refreshed
-window.addEventListener('beforeunload', () => {
-  if (sessionStream) {
-    sessionStream.getTracks().forEach(track => track.stop());
-    sessionStream = null;
-  }
-});
+    // ── INIT ──────────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', async () => {
+        const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognitionAPI) {
+            setStatus(MSG_STT_NOT_SUPPORTED, 'error');
+            document.getElementById(EL_START_BTN).disabled = true;
+            return;
+        }
+
+        // Pre-request microphone permission once on page load.
+        // This means the user sees the browser "Allow microphone" dialog only ONCE
+        // per page load; all subsequent startListening calls reuse this stream.
+        try {
+            const permState = await navigator.permissions.query({name: 'microphone'});
+            if (permState.state === 'granted') {
+                // Already allowed from a previous visit — silently pre-warm the stream
+                sessionStream = await navigator.mediaDevices.getUserMedia({audio: true});
+                setStatus(MSG_MIC_READY, 'idle');
+            } else if (permState.state === 'denied') {
+                setStatus(MSG_MIC_BLOCKED, 'error');
+                document.getElementById(EL_STATUS_DOT).className = CSS_STATUS_DOT_ERROR;
+            } else {
+                // 'prompt' — will ask when Start is clicked; pre-request now so it
+                // only happens once for the whole session
+                setStatus(MSG_MIC_ASK_ONCE, 'idle');
+                sessionStream = await navigator.mediaDevices.getUserMedia({audio: true});
+                setStatus(MSG_MIC_READY, 'idle');
+            }
+
+            // If permission changes later (e.g. user revokes it), update the UI
+            permState.onchange = () => {
+                if (permState.state === 'denied') {
+                    if (isListening) stopListening();
+                    sessionStream = null;
+                    setStatus(MSG_MIC_REVOKED, 'error');
+                }
+            };
+        } catch (_permError) {
+            // navigator.permissions may not be available in all browsers
+            setStatus(MSG_MIC_INIT, 'idle');
+        }
+    });
+
+    // Release the session stream cleanly when the page is closed/refreshed
+    window.addEventListener('beforeunload', () => {
+        if (sessionStream) {
+            sessionStream.getTracks().forEach(track => track.stop());
+            sessionStream = null;
+        }
+    });
 </script>
 </body>
 </html>
