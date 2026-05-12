@@ -2,7 +2,7 @@
 
 > **Author:** Santa Basnet  
 > **Company:** Wiseyak  
-> **Version:** v2  
+> **Version:** v2
 
 A browser-native, bilingual wake word detection engine that listens for **"Namaste Deepa"** (Nepali) and **"Hey Deepa"** (English) entirely in the browser — no backend, no machine learning model, no external APIs.
 
@@ -11,6 +11,7 @@ A browser-native, bilingual wake word detection engine that listens for **"Namas
 ## Table of Contents
 
 - [Overview](#overview)
+- [Teachable Machine model](#teachable-machine-model)
 - [Wake Phrases](#wake-phrases)
 - [Usage](#usage)
 - [How It Works](#how-it-works)
@@ -32,12 +33,20 @@ Deepa is a single-file HTML application (`deepa-wake-word.html`) that uses the b
 
 ---
 
+## Teachable Machine model
+
+Sharable trained model :
+
+[Teachable Machine — model nFIDNNdXD](https://teachablemachine.withgoogle.com/models/nFIDNNdXD/)
+
+---
+
 ## Wake Phrases
 
-| Language | Phrase          | Phonetic        |
-|----------|-----------------|-----------------|
-| Nepali   | Namaste Deepa   | na-mas-te dee-pah |
-| English  | Hey Deepa       | hay dee-pah      |
+| Language | Phrase        | Phonetic          |
+| -------- | ------------- | ----------------- |
+| Nepali   | Namaste Deepa | na-mas-te dee-pah |
+| English  | Hey Deepa     | hay dee-pah       |
 
 The engine also recognises common phonetic variants such as:  
 `dipa`, `deepaa`, `deepha`, `diipa`, `namashte`, `namasthe`, `namastay`, `hi deepa`, `hello deepa`, `hei deepa`, `hay deepa`, `okay deepa`, and more.
@@ -82,17 +91,17 @@ Microphone → Web Speech API → transcript → Normalise → Fuzzy Score → T
 
 The core scoring function `scoreTranscript(raw)` operates in three passes:
 
-| Pass | Technique | Score |
-|------|-----------|-------|
-| 1 | Direct substring match against all keyword variants | 1.0 (full) |
-| 2 | Token-level fuzzy match using Levenshtein distance | 0.35 – 0.92 |
-| 3 | Sliding window bigram scan with edit-distance penalty | variable |
+| Pass | Technique                                             | Score       |
+| ---- | ----------------------------------------------------- | ----------- |
+| 1    | Direct substring match against all keyword variants   | 1.0 (full)  |
+| 2    | Token-level fuzzy match using Levenshtein distance    | 0.35 – 0.92 |
+| 3    | Sliding window bigram scan with edit-distance penalty | variable    |
 
 **Regular expressions** used during normalisation are defined as named constants:
 
 ```js
-const RE_STRIP_NON_ALPHA  = /[^a-z\s]/g;  // strip punctuation/digits
-const RE_WHITESPACE_SPLIT = /\s+/;         // tokenise on whitespace
+const RE_STRIP_NON_ALPHA = /[^a-z\s]/g; // strip punctuation/digits
+const RE_WHITESPACE_SPLIT = /\s+/; // tokenise on whitespace
 ```
 
 ### Scoring Pipeline
@@ -139,30 +148,30 @@ Detections are stored in a fixed-capacity array (`detectionLRU`, capacity = **10
 
 All tunable values are top-level `const` declarations — no magic numbers in logic.
 
-| Constant | Default | Description |
-|---|---|---|
-| `THRESHOLD` | `0.70` | Minimum score to fire a detection |
-| `COOLDOWN_MS` | `2200` | ms between detections per language |
-| `SILENCE_TIMEOUT_MS` | `8000` | ms of silence before recogniser restart |
-| `REMEMBER_LOGS` | `10` | LRU log capacity |
-| `ORB_RESET_DELAY_MS` | `900` | ms before orb returns to listening state |
-| `FUZZY_DIST_DEEPA` | `2` | Max edit distance for deepa token |
-| `FUZZY_DIST_NAMASTE` | `2` | Max edit distance for namaste token |
-| `FUZZY_DIST_HEY` | `1` | Max edit distance for hey token |
-| `BIGRAM_MAX_DIST` | `3` | Max edit distance for bigram scan |
-| `STT_MAX_ALTERNATIVES` | `3` | Recognition hypotheses per utterance |
-| `EMA_OLD_WEIGHT` | `0.4` | Weight of previous rolling score |
-| `EMA_NEW_WEIGHT` | `0.6` | Weight of new score |
-| `TONE_FREQ_NE` | `528 Hz` | Detection tone for Nepali |
-| `TONE_FREQ_EN` | `440 Hz` | Detection tone for English |
+| Constant               | Default  | Description                              |
+| ---------------------- | -------- | ---------------------------------------- |
+| `THRESHOLD`            | `0.70`   | Minimum score to fire a detection        |
+| `COOLDOWN_MS`          | `2200`   | ms between detections per language       |
+| `SILENCE_TIMEOUT_MS`   | `8000`   | ms of silence before recogniser restart  |
+| `REMEMBER_LOGS`        | `10`     | LRU log capacity                         |
+| `ORB_RESET_DELAY_MS`   | `900`    | ms before orb returns to listening state |
+| `FUZZY_DIST_DEEPA`     | `2`      | Max edit distance for deepa token        |
+| `FUZZY_DIST_NAMASTE`   | `2`      | Max edit distance for namaste token      |
+| `FUZZY_DIST_HEY`       | `1`      | Max edit distance for hey token          |
+| `BIGRAM_MAX_DIST`      | `3`      | Max edit distance for bigram scan        |
+| `STT_MAX_ALTERNATIVES` | `3`      | Recognition hypotheses per utterance     |
+| `EMA_OLD_WEIGHT`       | `0.4`    | Weight of previous rolling score         |
+| `EMA_NEW_WEIGHT`       | `0.6`    | Weight of new score                      |
+| `TONE_FREQ_NE`         | `528 Hz` | Detection tone for Nepali                |
+| `TONE_FREQ_EN`         | `440 Hz` | Detection tone for English               |
 
 ---
 
 ## Browser Compatibility
 
-| Browser | Support | Notes |
-|---|---|---|
-| Chrome | ✅ Best | Full support, best Nepali phoneme coverage |
-| Edge | ✅ Good | Full support |
-| Safari | ⚠️ Partial | Limited SpeechRecognition support |
-| Firefox | ❌ No | `SpeechRecognition` not supported |
+| Browser | Support    | Notes                                      |
+| ------- | ---------- | ------------------------------------------ |
+| Chrome  | ✅ Best    | Full support, best Nepali phoneme coverage |
+| Edge    | ✅ Good    | Full support                               |
+| Safari  | ⚠️ Partial | Limited SpeechRecognition support          |
+| Firefox | ❌ No      | `SpeechRecognition` not supported          |
